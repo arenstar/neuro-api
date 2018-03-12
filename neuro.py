@@ -4,10 +4,10 @@ import json
 import falcon
 from falcon_auth import FalconAuthMiddleware, BasicAuthBackend
 
-elasticsearch_host = ['52.169.143.2:9200']
+elasticsearch_host = ['127.0.0.1:9200']
 
 httpauth = {}
-httpauth['rainmaker'] = "bn8p#s2sYkc"
+httpauth['username'] = "password"
 
 class StatusResource:
     def on_get(self, req, resp):
