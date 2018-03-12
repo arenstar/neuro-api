@@ -5,7 +5,7 @@ import falcon
 import requests
 from falcon_auth import FalconAuthMiddleware, BasicAuthBackend
 
-elasticsearch_host = ['127.0.0.1:9200']
+elasticsearch_host = ['52.169.143.2:9200']
 
 httpauth = {}
 httpauth['user1'] = "password"
@@ -31,7 +31,8 @@ class LatestAllResource:
         if req.context['user']['username'] not in httpauth:
             resp.status = falcon.HTTP_401
             return
-        if req.context['user']['password'] != httpauth[req.context['user']['password']]:
+
+        if req.context['user']['password'] != httpauth[req.context['user']['username']]:
             resp.status = falcon.HTTP_401
             return
 
@@ -57,8 +58,13 @@ class CoinmarketcapCoinResource:
 
     def on_get(self, req, resp, coin):
 
-        es = elasticsearch.Elasticsearch(elasticsearch_host)
-        available_coins = ['iota', 'siacoin', 'ethereumclassi', 'verge', 'digibyte', 'ripple', 'zcash', 'bitcoin', 'litecoin', 'wave', 'monacoin', 'ethereum', 'strati', 'komodo', 'ark', 'monero', 'qtum', 'decred', 'bitshare', 'nxt', 'golem', 'vertcoin', 'veritaseum', 'dash', 'ardor', 'nem', 'lisk', 'reddcoin', 'stellar']
+        if req.context['user']['username'] not in httpauth:
+            resp.status = falcon.HTTP_401
+            return
+
+        if req.context['user']['password'] != httpauth[req.context['user']['username']]:
+            resp.status = falcon.HTTP_401
+            return
 
         query = json.dumps({
             "query": {
@@ -72,9 +78,14 @@ class CoinmarketcapCoinResource:
             "sort": [{"last_updated": {"order": "asc"}}],
             "size": 1500
         })
-        result = es.search(index="coinmarketcap_"+str(coin), doc_type="coinmarketcap", body=query)
-        #result = es.search(index="coinmarketcap_"+str(coin), doc_type="coinmarketcap")
-        print(result)
+
+        try:
+            es = elasticsearch.Elasticsearch(elasticsearch_host)
+            result = es.search(index="coinmarketcap_"+str(coin), doc_type="coinmarketcap", body=query)
+        except elasticsearch.ElasticsearchException:
+            resp.media = "ElasticSearch ConnectionRefusedError"
+            resp.status = falcon.HTTP_500
+
         resp.body = json.dumps(result, ensure_ascii=False)
         resp.status = falcon.HTTP_200
 
@@ -82,18 +93,25 @@ class CoinmarketcapUpdateResource:
 
     def on_get(self, req, resp):
 
-        es = elasticsearch.Elasticsearch(elasticsearch_host)
+        if req.context['user']['username'] not in httpauth:
+            resp.status = falcon.HTTP_401
+            return
 
-        available_coins = ['iota', 'siacoin', 'ethereumclassi', 'verge', 'digibyte', 'ripple', 'zcash', 'bitcoin', 'litecoin', 'wave', 'monacoin', 'ethereum', 'strati', 'komodo', 'ark', 'monero', 'qtum', 'decred', 'bitshare', 'nxt', 'golem', 'vertcoin', 'veritaseum', 'dash', 'ardor', 'nem', 'lisk', 'reddcoin', 'stellar']
+        if req.context['user']['password'] != httpauth[req.context['user']['username']]:
+            resp.status = falcon.HTTP_401
+            return
 
         response = requests.get('https://api.coinmarketcap.com/v1/ticker/?limit=0')
         json_data = json.loads(response.text)
 
+        available_coins = ['iota', 'siacoin', 'ethereumclassi', 'verge', 'digibyte', 'ripple', 'zcash', 'bitcoin', 'litecoin', 'waves', 'monacoin', 'ethereum', 'strati', 'komodo', 'ark', 'monero', 'qtum', 'decred', 'bitshare', 'nxt', 'golem', 'vertcoin', 'veritaseum', 'dash', 'ardor', 'nem', 'lisk', 'reddcoin', 'stellar']
+
         for coin in json_data:
             result = {}
             if coin['id'] in available_coins:
-                result['id'] = coin['id']
-                result['last_updated'] = datetime.fromtimestamp(int(coin['last_updated'])).isoformat()
+                result['id'] = coin['last_updated']
+                result['index'] = coin['id']
+                result['last_updated'] = datetime.fromtimestamp(int(coin['last_updated'])).astimezone(tz=None).isoformat()
                 result['rank'] = int(coin['rank'])
                 result['price_usd'] = float(coin['price_usd'])
                 result['price_btc'] = float(coin['price_btc'])
@@ -105,7 +123,14 @@ class CoinmarketcapUpdateResource:
                 result['percent_change_1h'] = coin['percent_change_1h']
                 result['percent_change_24h'] = coin['percent_change_24h']
                 result['percent_change_7d'] = coin['percent_change_7d']
-                print(es.index(index="coinmarketcap_"+str(result['id']), doc_type="coinmarketcap", id=result['last_updated'], body=result))
+
+                try:
+                    es = elasticsearch.Elasticsearch(elasticsearch_host)
+                    es.index(index="coinmarketcap_"+str(result['index']), doc_type="coinmarketcap", id=result['id'], body=result)
+                except elasticsearch.ElasticsearchException:
+                    resp.media = "ElasticSearch ConnectionRefusedError"
+                    resp.status = falcon.HTTP_500
+
         resp.status = falcon.HTTP_200
 
 class LatestCoinResource:
