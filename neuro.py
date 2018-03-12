@@ -29,7 +29,7 @@ class LatestCoinResource:
         if req.context['user']['username'] not in httpauth:
             resp.status = falcon.HTTP_401
             return
-        if req.context['user']['password'] != httpauth[req.context['user']['username']]:
+        if req.context['user']['password'] != httpauth[req.context['user']['password']]:
             resp.status = falcon.HTTP_401
             return
             
