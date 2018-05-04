@@ -3,6 +3,7 @@ import json
 import sys
 import elasticsearch
 import schedule
+import datetime
 
 elasticsearch_host = ['52.169.143.2:9200']
 
@@ -18,11 +19,9 @@ def scrape():
     for coin in json_data:
         result = {}
         if coin['id'] in available_coins:
-            result['id'] = coin['last_updated']
-            result['index'] = coin['id']
-            ####
-            result['last_updated'] = str(coin['last_updated'])
-            ####
+            result['id'] = coin['id']
+            result['name'] = coin['name']
+            result['symbol'] = coin['symbol']
             result['rank'] = int(coin['rank'])
             result['price_usd'] = float(coin['price_usd'])
             result['price_btc'] = float(coin['price_btc'])
@@ -34,7 +33,10 @@ def scrape():
             result['percent_change_1h'] = coin['percent_change_1h']
             result['percent_change_24h'] = coin['percent_change_24h']
             result['percent_change_7d'] = coin['percent_change_7d']
-            print(es.index(index="new_coinmarketcap_"+str(result['index']), doc_type="coinmarketcap", id=result['id'], body=result))
+            ####
+            #result['last_updated'] = str(coin['last_updated'])
+            result['last_updated'] = datetime.datetime.utcfromtimestamp(int(coin['last_updated'])).strftime('%Y-%m-%dT%H:%M:%S+00:00')
+            print(es.index(index="new_coinmarketcap_"+str(coin['id']), doc_type="coinmarketcap", id=coin['last_updated'], body=result))
 
 
 schedule.every(1).minutes.do(scrape)
